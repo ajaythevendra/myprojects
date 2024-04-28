@@ -1,0 +1,140 @@
+_schema-version: '3.2'
+ID: app
+version: 0.0.1
+
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm install --production
+        - npx -p @sap/cds-dk cds build --production
+
+modules:
+
+  # --------------------- SERVER MODULE ------------------------
+  - name: app-srv
+  # ------------------------------------------------------------
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 512M
+      disk-quota: 1024M
+    requires:
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+
+
+  # ----------- HTML5 APP REPOSITORY APP HTML5 MODULE ----------
+  - name: app-html5
+  # ------------------------------------------------------------
+    type: html5
+    path: app/resources/html5
+    build-parameters:
+      builder: custom
+      commands:
+        - npm run build
+      supported-platforms: []
+
+
+  # ----------- HTML5 APP REPOSITORY DEPLOYER MODULE -----------
+  - name: app-ui-deployer
+  # ------------------------------------------------------------
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: app-html5repo
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: gen/app
+      requires:
+        - artifacts:
+            - html5-content.zip
+          name: app-html5
+          target-path: gen/app/
+
+  # ----- HTML5 APP REPOSITORY DESTINATION CONTENT MODULE ------
+  - name: app-dest-content
+  # ------------------------------------------------------------
+    type: com.sap.application.content
+    requires:
+      - name: app-uaa
+        parameters:
+          service-key:
+            name: app-uaa-sk
+      - name: app-dest
+        parameters:
+          content-target: true
+      - name: app-html5repo
+        parameters:
+          service-key:
+            name: app-html5repo-sk
+    parameters:
+      content:
+        subaccount:
+          existing_destinations_policy: update
+          destinations:
+            - Name: app-service-app-uaa
+              ServiceInstanceName: app-uaa
+              ServiceKeyName: app-uaa-sk
+              Authentication: OAuth2UserTokenExchange
+              sap.cloud.service: app-service
+            - Name: app-service-app-html5repo
+              ServiceInstanceName: app-html5repo
+              ServiceKeyName: app-html5repo-sk
+              sap.cloud.service: app-service
+    build-parameters:
+      no-source: true
+
+resources:
+  # ----------------------- UAA SERVICE ------------------------
+  - name: app-uaa
+  # ------------------------------------------------------------
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+
+  # -------------------- DESTINATION SERVICE -------------------
+  - name: app-dest
+  # ------------------------------------------------------------
+    type: org.cloudfoundry.managed-service
+    requires:
+      - name: srv-api
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        HTML5Runtime_enabled: true
+        init_data:
+          subaccount:
+            existing_destinations_policy: update
+            destinations:
+              - Name: app-srv
+                Description: cap - Server Module
+                URL: ~{srv-api/srv-url}
+                Type: HTTP
+                ProxyType: Internet
+                Authentication: NoAuthentication
+                HTML5.DynamicDestination: true
+
+  # ----------- HTML5 APP REPOSITORY HOSTING SERVICE -----------
+  - name: app-html5repo
+  # ------------------------------------------------------------
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+
+
+
+
+

@@ -1,0 +1,17 @@
+{
+    "_version": "",
+    "sap.cloud": {
+        "public": true,
+        "service": "app-service"
+    },
+    "sap.app": {
+        "id": "app-html5",
+        "type": "application",
+        "applicationVersion": {
+            "version": "0.0.1"
+        },
+        "title": "cap HTML5",
+        "description": "Business Application HTML5",
+        "offline": false
+    }
+}
